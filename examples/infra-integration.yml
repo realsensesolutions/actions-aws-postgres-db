@@ -1,0 +1,53 @@
+name: Example - Deploy DSQL
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  region: us-east-1
+
+jobs:
+  deploy:
+    permissions:
+      id-token: write
+      contents: read
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.region }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: ${{ github.actor }}
+
+      - name: Setup Terraform Backend
+        uses: alonch/actions-aws-backend-setup@main
+        with:
+          instance: my-app
+
+      - name: Network
+        id: network
+        uses: realsensesolutions/actions-aws-network@main
+
+      - name: Deploy Aurora DSQL
+        uses: realsensesolutions/actions-aws-postgres-db@main
+        id: dsql
+        with:
+          name: my-app-dsql
+          action: apply
+          deletion_protection_enabled: 'false'
+          create_iam_role: 'true'
+
+      - name: Display outputs
+        run: |
+          echo "DSQL Cluster ARN: ${{ steps.dsql.outputs.cluster_arn }}"
+          echo "DSQL Cluster Endpoint: ${{ steps.dsql.outputs.cluster_endpoint }}"
+          echo "IAM Role ARN: ${{ steps.dsql.outputs.iam_role_arn }}"
