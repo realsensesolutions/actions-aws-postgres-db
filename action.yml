@@ -1,0 +1,124 @@
+name: 'AWS Aurora DSQL'
+description: 'Creates an Aurora DSQL cluster (simplified - no VPC endpoints)'
+author: 'realsensesolutions'
+
+inputs:
+  name:
+    description: 'Cluster name'
+    required: true
+  action:
+    description: 'plan, apply, or destroy'
+    required: false
+    default: 'apply'
+  deletion_protection_enabled:
+    description: 'Enable deletion protection'
+    required: false
+    default: 'false'
+  create_iam_role:
+    description: 'Create IAM role for access'
+    required: false
+    default: 'true'
+  lock-timeout:
+    description: 'Time to wait for state lock'
+    required: false
+    default: '5m'
+
+outputs:
+  cluster_arn:
+    description: 'Cluster ARN'
+    value: ${{ steps.output.outputs.cluster_arn }}
+  cluster_id:
+    description: 'Cluster ID'
+    value: ${{ steps.output.outputs.cluster_id }}
+  cluster_endpoint:
+    description: 'Public endpoint'
+    value: ${{ steps.output.outputs.cluster_endpoint }}
+  vpc_endpoint_service_name:
+    description: 'VPC endpoint service name'
+    value: ${{ steps.output.outputs.vpc_endpoint_service_name }}
+  iam_role_arn:
+    description: 'IAM role ARN'
+    value: ${{ steps.output.outputs.iam_role_arn }}
+  region:
+    description: 'AWS region'
+    value: ${{ steps.output.outputs.region }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        TF_BACKEND_key: "actions-aws-postgres-db/${{ env.TF_VAR_instance }}"
+      run: |
+        terraform init -reconfigure \
+          -lock-timeout=${{ inputs.lock-timeout }} \
+          -backend-config="bucket=$TF_BACKEND_s3" \
+          -backend-config="dynamodb_table=$TF_BACKEND_dynamodb" \
+          -backend-config="key=$TF_BACKEND_key"
+
+    - name: Terraform Plan
+      if: inputs.action == 'plan'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        TF_VAR_cluster_name: ${{ inputs.name }}
+        TF_VAR_deletion_protection_enabled: ${{ inputs.deletion_protection_enabled }}
+        TF_VAR_create_iam_role: ${{ inputs.create_iam_role }}
+      run: terraform plan -lock-timeout=${{ inputs.lock-timeout }}
+
+    - name: Terraform Apply
+      if: inputs.action == 'apply'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        TF_VAR_cluster_name: ${{ inputs.name }}
+        TF_VAR_deletion_protection_enabled: ${{ inputs.deletion_protection_enabled }}
+        TF_VAR_create_iam_role: ${{ inputs.create_iam_role }}
+      run: terraform apply -auto-approve -lock-timeout=${{ inputs.lock-timeout }}
+
+    - name: Terraform Destroy
+      if: inputs.action == 'destroy'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        TF_VAR_cluster_name: ${{ inputs.name }}
+        TF_VAR_deletion_protection_enabled: ${{ inputs.deletion_protection_enabled }}
+        TF_VAR_create_iam_role: ${{ inputs.create_iam_role }}
+      run: terraform destroy -auto-approve -lock-timeout=${{ inputs.lock-timeout }}
+
+    - name: Set Outputs
+      id: output
+      if: inputs.action == 'apply'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        CLUSTER_ARN=$(terraform output -raw cluster_arn)
+        CLUSTER_ID=$(terraform output -raw cluster_id)
+        CLUSTER_ENDPOINT=$(terraform output -raw cluster_endpoint)
+        VPC_ENDPOINT_SERVICE_NAME=$(terraform output -raw vpc_endpoint_service_name)
+        IAM_ROLE_ARN=$(terraform output -raw iam_role_arn 2>/dev/null || echo "")
+        REGION=$(terraform output -raw region)
+
+        # Export to GITHUB_ENV (for downstream actions)
+        echo "TF_VAR_dsql_cluster_arn=$CLUSTER_ARN" >> $GITHUB_ENV
+        echo "TF_VAR_dsql_cluster_id=$CLUSTER_ID" >> $GITHUB_ENV
+        echo "TF_VAR_dsql_cluster_endpoint=$CLUSTER_ENDPOINT" >> $GITHUB_ENV
+        echo "TF_VAR_dsql_iam_role_arn=$IAM_ROLE_ARN" >> $GITHUB_ENV
+
+        # Export to GITHUB_OUTPUT (for step outputs)
+        echo "cluster_arn=$CLUSTER_ARN" >> $GITHUB_OUTPUT
+        echo "cluster_id=$CLUSTER_ID" >> $GITHUB_OUTPUT
+        echo "cluster_endpoint=$CLUSTER_ENDPOINT" >> $GITHUB_OUTPUT
+        echo "vpc_endpoint_service_name=$VPC_ENDPOINT_SERVICE_NAME" >> $GITHUB_OUTPUT
+        echo "iam_role_arn=$IAM_ROLE_ARN" >> $GITHUB_OUTPUT
+        echo "region=$REGION" >> $GITHUB_OUTPUT
+
+branding:
+  icon: 'database'
+  color: 'purple'
+
