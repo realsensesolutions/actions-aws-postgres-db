@@ -17,20 +17,6 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        instance:
-          - name: dsql-test-alpha
-            deletion_protection: 'false'
-            create_iam_role: 'true'
-          - name: dsql-test-beta
-            deletion_protection: 'false'
-            create_iam_role: 'true'
-          - name: dsql-test-gamma
-            deletion_protection: 'false'
-            create_iam_role: 'false'
-
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
@@ -40,50 +26,54 @@ jobs:
         with:
           aws-region: ${{ env.region }}
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          role-session-name: ${{ github.repository_owner }}-${{ github.actor }}-${{ matrix.instance.name }}
+          role-session-name: ${{ github.repository_owner }}-${{ github.actor }}
 
       - name: Setup Terraform Backend
         uses: alonch/actions-aws-backend-setup@main
+        id: backend
         with:
-          instance: ${{ matrix.instance.name }}
+          instance: test-dsql-action
 
-      - name: Deploy DSQL Cluster - ${{ matrix.instance.name }}
+      - name: Deploy DSQL Cluster
         uses: ./
         id: dsql
         with:
-          name: ${{ matrix.instance.name }}
+          name: test-dsql-cluster
           action: apply
-          deletion_protection_enabled: ${{ matrix.instance.deletion_protection }}
-          create_iam_role: ${{ matrix.instance.create_iam_role }}
+          deletion_protection_enabled: 'false'
+          create_iam_role: 'true'
 
-      - name: Display Outputs - ${{ matrix.instance.name }}
+      - name: Display Outputs
         run: |
-          echo "=== DSQL Cluster: ${{ matrix.instance.name }} ==="
+          echo "=== DSQL Cluster Outputs ==="
           echo "Cluster ARN: ${{ steps.dsql.outputs.cluster_arn }}"
           echo "Cluster ID: ${{ steps.dsql.outputs.cluster_id }}"
           echo "Cluster Endpoint: ${{ steps.dsql.outputs.cluster_endpoint }}"
           echo "VPC Endpoint Service Name: ${{ steps.dsql.outputs.vpc_endpoint_service_name }}"
           echo "IAM Role ARN: ${{ steps.dsql.outputs.iam_role_arn }}"
           echo "Region: ${{ steps.dsql.outputs.region }}"
+          echo ""
+          echo "=== Environment Variables ==="
+          echo "TF_VAR_dsql_cluster_endpoint: $TF_VAR_dsql_cluster_endpoint"
 
-      - name: Test Connection - ${{ matrix.instance.name }}
+      - name: Test Connection (Auth Token)
         run: |
-          echo "Generating DSQL auth token for ${{ matrix.instance.name }}..."
+          echo "Generating DSQL auth token..."
           TOKEN=$(aws dsql generate-db-connect-admin-auth-token \
             --hostname ${{ steps.dsql.outputs.cluster_endpoint }} \
             --region ${{ env.region }})
           
           if [ -n "$TOKEN" ]; then
-            echo "✓ Auth token generated successfully for ${{ matrix.instance.name }}"
+            echo "✓ Auth token generated successfully"
           else
-            echo "✗ Failed to generate auth token for ${{ matrix.instance.name }}"
+            echo "✗ Failed to generate auth token"
             exit 1
           fi
 
-      # - name: Cleanup - Destroy ${{ matrix.instance.name }}
+      # - name: Cleanup - Destroy Cluster
       #   if: always()
       #   uses: ./
       #   with:
-      #     name: ${{ matrix.instance.name }}
+      #     name: test-dsql-cluster
       #     action: destroy
       #     deletion_protection_enabled: 'false'
