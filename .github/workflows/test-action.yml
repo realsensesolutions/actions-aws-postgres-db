@@ -70,10 +70,10 @@ jobs:
             exit 1
           fi
 
-      - name: Cleanup - Destroy Cluster
-        if: always()
-        uses: ./
-        with:
-          name: test-dsql-cluster
-          action: destroy
-          deletion_protection_enabled: 'false'
+      # - name: Cleanup - Destroy Cluster
+      #   if: always()
+      #   uses: ./
+      #   with:
+      #     name: test-dsql-cluster
+      #     action: destroy
+      #     deletion_protection_enabled: 'false'
