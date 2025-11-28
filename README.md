@@ -165,7 +165,7 @@ PGPASSWORD="$TOKEN" psql \
 
 ## Comparison with actions-aws-aurora-dsql
 
-This action is a **simplified version** of [actions-aws-aurora-dsql](https://github.com/realsensesolutions/actions-aws-aurora-dsql):
+This action is a **simplified and fixed version** of [actions-aws-aurora-dsql](https://github.com/realsensesolutions/actions-aws-aurora-dsql):
 
 | Feature | actions-aws-aurora-dsql | This Action |
 |---------|------------------------|-------------|
@@ -176,18 +176,6 @@ This action is a **simplified version** of [actions-aws-aurora-dsql](https://git
 | Backend Key | ❌ Uses `inputs.name` | ✅ Uses `TF_VAR_instance` |
 | Naming | ❌ `-dsql-dsql` duplicates | ✅ Clean naming |
 
-### When to Use This Action
-
-- Development and testing environments
-- Scenarios where VPC endpoints are not needed
-- Cost optimization (VPC endpoints have hourly charges)
-- Simpler setup without network configuration
-
-### When to Use actions-aws-aurora-dsql
-
-- Production environments requiring private connectivity
-- Lambda functions in VPC that need to connect to DSQL
-- Compliance requirements for private endpoints
 
 ## Important Notes
 
